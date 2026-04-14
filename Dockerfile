@@ -5,11 +5,11 @@
 # expensive, rarely-changing layers (apt, gosu, users, openclaw CLI).
 #
 # For local builds without GHCR access, build the base first:
-#   docker build -f Dockerfile.base -t ghcr.io/kenneyhe2/nemoclaw/sandbox-base:latest .
+#   docker build -f Dockerfile.base -t ghcr.io/nvidia/nemoclaw/sandbox-base:latest .
 
 # Global ARG — must be declared before the first FROM to be visible
 # to all FROM directives. Can be overridden via --build-arg.
-ARG BASE_IMAGE=ghcr.io/kenneyhe2/nemoclaw/sandbox-base:latest
+ARG BASE_IMAGE=ghcr.io/nvidia/nemoclaw/sandbox-base:latest
 
 # Stage 1: Build TypeScript plugin from source
 FROM node:22-slim@sha256:4f77a690f2f8946ab16fe1e791a3ac0667ae1c3575c3e4d0d4589e9ed5bfaf3d AS builder
