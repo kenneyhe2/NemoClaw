@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Build NemoClaw sandbox base image with a selected OpenClaw version,
+# then run onboarding with a provided credentials file.
+
+OPENCLAW_VERSION="2026.4.15"
+CREDENTIALS_FILE=""
+IMAGE_TAG="ghcr.io/nvidia/nemoclaw/sandbox-base:latest"
+WORKDIR="${HOME}/.nemoclaw"
+# Docker build context (must contain nemoclaw-blueprint/ etc. for Dockerfile.base)
+BUILD_CONTEXT=""
+# Path relative to BUILD_CONTEXT, or absolute
+DOCKERFILE_REL="Dockerfile.base"
+SKIP_BUILD="false"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ansible-sandbox --credentials /path/to/credential.json [--openclaw-version VERSION]
+                  [--image-tag TAG] [--workdir DIR] [--build-context DIR]
+                  [--dockerfile REL_OR_ABS] [--skip-build]
+
+Examples:
+  ansible-sandbox --credentials ~/credentials.json
+  ansible-sandbox --credentials ~/credentials.json --openclaw-version 2026.4.15
+
+What this does:
+  1) docker build -f Dockerfile.base in ~/.nemoclaw/source (default context) with OPENCLAW_VERSION
+  2) Copies credentials to ~/.nemoclaw/credentials.json
+  3) Runs "nemoclaw onboard" from ~/.nemoclaw
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --credentials)
+      CREDENTIALS_FILE="${2:-}"
+      shift 2
+      ;;
+    --openclaw-version)
+      OPENCLAW_VERSION="${2:-}"
+      shift 2
+      ;;
+    --image-tag)
+      IMAGE_TAG="${2:-}"
+      shift 2
+      ;;
+    --workdir)
+      WORKDIR="${2:-}"
+      shift 2
+      ;;
+    --build-context)
+      BUILD_CONTEXT="${2:-}"
+      shift 2
+      ;;
+    --dockerfile)
+      DOCKERFILE_REL="${2:-}"
+      shift 2
+      ;;
+    --skip-build)
+      SKIP_BUILD="true"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${CREDENTIALS_FILE}" ]]; then
+  echo "Error: --credentials is required." >&2
+  usage
+  exit 1
+fi
+
+if [[ ! -f "${CREDENTIALS_FILE}" ]]; then
+  echo "Error: credentials file not found: ${CREDENTIALS_FILE}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${WORKDIR}" ]]; then
+  echo "Error: workdir does not exist: ${WORKDIR}" >&2
+  exit 1
+fi
+
+if [[ -z "${BUILD_CONTEXT}" ]]; then
+  BUILD_CONTEXT="${WORKDIR}/source"
+fi
+
+if [[ ! -d "${BUILD_CONTEXT}" ]]; then
+  echo "Error: build context does not exist: ${BUILD_CONTEXT}" >&2
+  exit 1
+fi
+
+if [[ "${DOCKERFILE_REL}" = /* ]]; then
+  DOCKERFILE_PATH="${DOCKERFILE_REL}"
+else
+  DOCKERFILE_PATH="${BUILD_CONTEXT}/${DOCKERFILE_REL}"
+fi
+if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
+  echo "Error: missing Dockerfile: ${DOCKERFILE_PATH}" >&2
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: docker is not installed or not in PATH." >&2
+  exit 1
+fi
+
+if ! command -v nemoclaw >/dev/null 2>&1; then
+  echo "Error: nemoclaw is not installed or not in PATH." >&2
+  exit 1
+fi
+
+if [[ "${SKIP_BUILD}" != "true" ]]; then
+  (
+    cd "${BUILD_CONTEXT}"
+    docker build -f "${DOCKERFILE_PATH}" \
+      --build-arg "OPENCLAW_VERSION=${OPENCLAW_VERSION}" \
+      -t "${IMAGE_TAG}" .
+  )
+fi
+
+install -m 0600 -T "${CREDENTIALS_FILE}" "${WORKDIR}/credentials.json"
+
+(
+  cd "${WORKDIR}"
+  exec nemoclaw onboard
+)

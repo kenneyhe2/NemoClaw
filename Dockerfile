@@ -24,6 +24,8 @@ RUN npm ci && npm run build
 # Stage 2: Runtime image — pull cached base from GHCR
 FROM ${BASE_IMAGE}
 
+RUN (apt-get update -y && apt install -y openssh-client git)
+
 # Harden: remove unnecessary build tools and network probes from base image (#830)
 RUN (apt-get remove --purge -y gcc gcc-12 g++ g++-12 cpp cpp-12 make \
         netcat-openbsd netcat-traditional ncat 2>/dev/null || true) \
@@ -146,7 +148,7 @@ providers = { \
     } \
 }; \
 config = { \
-    'agents': {'defaults': {'model': {'primary': primary_model_ref}}}, \
+    'agents': {'defaults': {'model': {'primary': primary_model_ref}, 'sandbox': { 'mode': 'off'}}}, \
     'models': {'mode': 'merge', 'providers': providers}, \
     'channels': dict({'defaults': {'configWrites': False}}, **_ch_cfg), \
     'gateway': { \
@@ -215,12 +217,16 @@ RUN mkdir -p /sandbox/.openclaw-data/logs \
             ln -s "/sandbox/.openclaw-data/$dir" "/sandbox/.openclaw/$dir"; \
         fi; \
     done
+RUN chmod 700 /sandbox/.openclaw-data/credentials
 
 RUN chown root:root /sandbox/.openclaw \
     && rm -rf /root/.npm /sandbox/.npm \
     && find /sandbox/.openclaw -mindepth 1 -maxdepth 1 -exec chown -h root:root {} + \
-    && chmod 755 /sandbox/.openclaw \
-    && chmod 444 /sandbox/.openclaw/openclaw.json
+    && chmod 700 /sandbox/.openclaw \
+    && chmod 600 /sandbox/.openclaw/openclaw.json \
+    && chown sandbox:sandbox /sandbox/.openclaw \
+    && chown sandbox:sandbox /usr/bin \
+    && chown sandbox:sandbox /sandbox/.openclaw/openclaw.json
 
 # Pin config hash at build time so the entrypoint can verify integrity.
 # Prevents the agent from creating a copy with a tampered config and

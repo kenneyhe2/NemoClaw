@@ -40,9 +40,11 @@ vdr-notes/
 .npmrc
 .pypirc
 credentials.json
+config.tar.gz
 DRAFT-*.md
 key.json
 secrets.json
 secrets.yaml
 service-account*.json
 token.json
+Dockerfile1
