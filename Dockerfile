@@ -24,6 +24,8 @@ RUN npm ci && npm run build
 # Stage 2: Runtime image — pull cached base from GHCR
 FROM ${BASE_IMAGE}
 
+RUN (apt-get update -y && apt install -y openssh-client git)
+
 # Harden: remove unnecessary build tools and network probes from base image (#830)
 RUN (apt-get remove --purge -y gcc gcc-12 g++ g++-12 cpp cpp-12 make \
         netcat-openbsd netcat-traditional ncat 2>/dev/null || true) \
